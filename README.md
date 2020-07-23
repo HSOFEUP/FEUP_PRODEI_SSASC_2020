@@ -1,5 +1,5 @@
 
-#Infectious Disease  Model
+# Infectious Disease  Model
 
 ## WHAT IS IT?
 
@@ -22,5 +22,5 @@ Note: Click Clear Turtles to remove agents and leave landscape in place. Click C
 ## EXTENDING THE MODEL
 This model is for infectious disease that spreads via contact. Future models will show the progression of air-borne, food-borne and fixed source contact diseases.
 
-## CREDITS AND REFERENCES
+##  CREDITS AND REFERENCES
 This model was developed as a part of research work for The Center for Complexity in Health at Kent State University Ashtabula.
