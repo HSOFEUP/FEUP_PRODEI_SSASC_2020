@@ -1,143 +1,85 @@
-;;Infectious Disease Model ver. 1
-;;This model simulates the spread of an infectious disease traveling via contact through
-;;a randomly moving population.  The user can draw walls, buildings, or obstacles in the
-;;environment to simulate different environments.
+;; Zombieland Model ver 1.3 - a basic simulation of a zombie attack with seek and flee
+;; functions for agents.  Movement speed and vision radius are also adjustable.  The user
+;; can draw buildings in the environment to provide obstacles for the agents. Added
+;; clear-turtles and clear-all buttons to user interface.
 
-breed [healthy] ;;Different breeds of turtles to show heatlh state.
-breed [infected]
-breed [sick]
-breed [immune]
-breed [dead]
+breed [human] ;;The poor sods that are getting eaten.
+breed [zombie] ;;Brains!!!!!!!!!
+breed [building]
 
-globals [ ;; Global variables.
-  total-healthy
-  total-sick
-  total-infected
-  total-immune
-  total-dead
-]
+globals [
+  percent-human  ;;Percentage of agents that are human.
+  percent-zombie  ;;Percentage of agents that are zombies.
+  ]
 
-turtles-own [  ;; Turtle variables.
-  turn-check
-  wall-turn-check
-  incubate
-  sickness
-  terminal-check
-  immune-check
-]
+turtles-own [
+  speed  ;;How fast the agents can move.
+  scared ;;Agent-subset consisting of zombies within vision radius of a single human.
+  brains ;;Agent-subset consisting of humans within vision radius of a single zombie.
+  nearest-brains  ;;Variable that holds the target human for a single zombie.
+  nearest-zombie  ;;Variable that holds the target zombie for a single human.
+  turn-check  ;;Holds the random variable for the wander sub-routine.
+  wall-turn-check  ;;Holds the random variable for the wall sub-routine.
+  ]
 
-to building-draw ;; Use the mouse to draw buildings.
-  if mouse-down?
+to building-draw
+  if mouse-down?     ;; reports true or false to indicate whether mouse button is down
     [
+      ;; mouse-xcor and mouse-ycor report the position of the mouse --
+      ;; note that they report the precise position of the mouse,
+      ;; so you might get a decimal number like 12.3, but "patch"
+      ;; automatically rounds to the nearest patch
       ask patch mouse-xcor mouse-ycor
-        [ set pcolor grey ]]
-end
+        [ set pcolor yellow ]]
+end  
 
-to setup  ;; Initialize the model.
-  clear-turtles
+to Setup  ;;Clear previous run and setup initial agent locations.
+  ;;clear-all
   pop-check
   setup-agents
-  update-globals
-  do-plots
+  reset-ticks
 end
 
-to go  ;; Run the model.
-   disease-check
-   repeat 5 [ ask healthy [ fd 0.2 ] display ]
-   repeat 5 [ ask infected [ fd 0.2 ] display ]
-   repeat 5 [ ask sick [ fd 0.2 ] display ]
-   repeat 5 [ ask immune [ fd 0.2 ] display ]
-   update-globals
-   do-plots
-   tick
+to go  ;;Run the simulation.
+   scared-check
+  repeat human-speed [ ask human [ fd 0.2 ] display ] ;;Controls the speed of humans and zombies
+  repeat zombie-speed [ ask zombie [ fd 0.2 ] display ] ;;and smooths the motion in simulation.
+  tick
 end
 
-
-to setup-agents  ;;  Setup the begining number of agents and their initial states.
-  set-default-shape healthy "person"
-  set-default-shape infected "person"
-  set-default-shape sick "person"
-  set-default-shape immune "person"
-  set-default-shape dead "caterpillar"
-
-  ask n-of initial-healthy patches with [pcolor  = black]
-     [ sprout-healthy 1
+to setup-agents ;; Create the desired number of each breed on random patches.
+  set-default-shape zombie "person"
+  set-default-shape human "person"
+  
+  ask n-of initial-zombies patches with [pcolor  = black]
+     [ sprout-zombie 1
+      [ set color red ] ]
+      
+  ask n-of initial-humans patches with [pcolor = black]
+    [ sprout-human 1
       [ set color blue ] ]
+      
+end  
 
-  ask n-of initial-sick patches with [pcolor = black]
-    [ sprout-sick 1
-      [ set color yellow
-        set sickness disease-period ] ]
-
-end
-
-to disease-check ;;  Check to see if an infected or sick turtle occupies the same patch.
-  ask healthy[
-    if any? other turtles-here with [color = yellow]
-    [infect]
-    if any? other turtles-here with [color = pink]
-    [infect]
-    wander
+to scared-check ;; Test if humans are near a zombie and have them run away if they are.
+  ask human [
+    zombies-near
+    ifelse any? scared
+    [run-away]
+    [wander]
   ]
-
-  ask sick[
-    if any? other turtles-here with [color = blue]
-    [infect]
-    wander
-    set sickness sickness - 1
-    if sickness = 0
-    [live-or-die]
+      ;; Test if zombies are near a human and have them chase them if they are.
+  ask zombie [
+    if any? other turtles-here
+    [convert]
+    seek-brains
+    ifelse any? brains
+    [run-toward]
+    [wander]   
   ]
-
-  ask infected[
-    if any? other turtles-here with [color = blue]
-    [infect]
-    wander
-    set incubate incubate - 1
-    if incubate = 0
-    [get-sick]
-  ]
-
-  ask immune[wander]
-
 end
-
-to infect ;;  Infect a healthy turtle, test if it is immune and set the incubation timer if it isn't.
-  set immune-check random 100
-  ifelse immune-check < immune-chance
-  [recover]
-  [ask healthy-on patch-here[
-    set breed infected
-    set incubate incubation-period]
-  ask infected-on patch-here [set color pink]]
-
-end
-
-to get-sick ;;  Change an infected turtle into an sick turtle and set the disease progression timer.
-   set breed sick
-   set color yellow
-   set sickness disease-period
-end
-
-to terminate ;;  Kill a sick turtle who reaches the end of the disease progression and fails the terminal check.
-  set breed dead
-  set color white
-end
-
-to live-or-die ;; Test if the turtle dies from the disease.
-  set terminal-check random 100
-  ifelse terminal-check < terminal-chance
-  [terminate]
-  [recover]
-end
-
-to recover  ;;  Change turtle breed to immune.
-  set breed immune
-  set color sky
-end
-
-
-to wander ;; Random movement for agents.
+  
+to wander ;; If an agent is not fleeing or chasing, have them wander around aimlessly.
     set turn-check random 20
     if turn-check > 15
     [right-turn]
@@ -145,10 +87,12 @@ to wander ;; Random movement for agents.
     [left-turn]
      if [pcolor] of patch-ahead 1 != black
      [wall]
+    ask zombie [ 
+      if any? other turtles-here
+      [ convert] ]
+end  
 
-end
-
-to wall ;;  Turn agent away from wall
+to wall ;;turn agent away from wall
     set wall-turn-check random 10
     if wall-turn-check >= 6
     [wall-right-turn]
@@ -157,13 +101,13 @@ to wall ;;  Turn agent away from wall
 end
 
 to wall-right-turn ;;Generate a random degree of turn for the wall sub-routine.
-  rt 170
+  rt 150
 end
 
-to wall-left-turn ;;Generate a random degree of turn for the wall sub-routine.
-  lt 170
+to wall-left-turn   ;;Generate a random degree of turn for the wall sub-routine.
+  lt 150
 end
-
+   
 to right-turn ;;Generate a random degree of turn for the wander sub-routine.
   rt random-float 10
 end
@@ -171,35 +115,44 @@ end
 to left-turn   ;;Generate a random degree of turn for the wander sub-routine.
   lt random-float 10
 end
-
-to update-globals ;;Set globals to current values for reporters.
-  set total-healthy (count healthy)
-  set total-infected (count infected)
-  set total-sick (count sick)
-  set total-immune (count immune)
-  set total-dead (count dead)
+  
+to convert ;;When a zombie lands on patch occupied by human, eat brains and turn human into zombie.
+  ask turtles-on patch-here [set breed zombie]
+  ask turtles-on patch-here [set color red]
 end
 
-to do-plots ;; Update graph.
-  set-current-plot "Population Totals"
-  set-current-plot-pen "Healthy"
-  plot total-healthy
-  set-current-plot-pen "Infected"
-  plot total-infected
-  set-current-plot-pen "Sick"
-  plot total-sick
-  set-current-plot-pen "Immune"
-  plot total-immune
-  set-current-plot-pen "Dead"
-  plot total-dead
-
+to zombies-near  ;;adds all zombies in vision radius of human to an agent subset for that agent.
+  set scared zombie in-radius human-vision
 end
 
+to run-away ;;Make human flee the zombie closest to it.
+  set nearest-zombie min-one-of scared [distance myself]
+  face nearest-zombie
+  rt 180
+   if [pcolor] of patch-ahead 1 != black
+     [wall]
+end
+
+to seek-brains  ;;adds all humans in vision radius of zombie to an agent subset for that agent.
+  set brains human in-radius Zombie-vision
+end
+
+to run-toward  ;;Make a zombie chasse the human closest to it.
+  set nearest-brains min-one-of brains [distance myself]
+  face nearest-brains
+  if any? other turtles-here
+    [convert]
+  if [pcolor] of patch-ahead 1 != black
+    [wall]
+end  
+  
 to pop-check  ;; Make sure total population does not exceed total number of patches.
-  if initial-healthy + initial-sick > count patches
-    [ user-message (word "This simulation only has room for " count patches " agents.")
+  if initial-zombies + initial-humans > count patches
+    [ user-message (word "This Zombieland only has room for " count patches " agents.")
       stop ]
 end
+
+    
 
 ; *** NetLogo 4.1 Model Copyright Notice ***
 ;
@@ -214,25 +167,25 @@ end
 ; profit.
 ;
 ; To refer to this model in academic publications, please use:
-; Ball, M. (2010).  Infectious Disease Model ver. 1.
-; http://www.personal.kent.edu/~mdball/netlogo_models.htm.
-; The Center for Complexity in Health,
+; Ball, M. (2010).  Zombieland Model ver. 1.3.
+; http://www.personal.kent.edu/~mdball/netlogo_models.html.
+; KSUAC Center for Complexity in Health,
 ; Kent State University at Ashtabula, Ashtabula, OH.
 ;
 ; In other publications, please use:
 ; Copyright 2010 Michael D. Ball.  All rights reserved.
-; See http://www.personal.kent.edu/~mdball/netlogo_models.htm
+; See http://www.personal.kent.edu/~mdball/netlogo_models.html
 ; for terms of use.
 ;
 ; *** End of NetLogo 4.1 Model Copyright Notice ***
 @#$#@#$#@
 GRAPHICS-WINDOW
-210
+205
 10
-647
-448
--1
--1
+644
+470
+16
+16
 13.0
 1
 10
@@ -253,42 +206,225 @@ GRAPHICS-WINDOW
 ticks
 30.0
 
+BUTTON
+19
+26
+83
+59
+Setup
+setup
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+118
+29
+181
+62
+Go
+go
+T
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SLIDER
+15
+115
+187
+148
+Initial-humans
+Initial-humans
+0
+100
+69
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+15
+155
+187
+188
+Initial-zombies
+Initial-zombies
+0
+100
+1
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+15
+195
+187
+228
+Zombie-speed
+Zombie-speed
+1
+10
+1
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+15
+235
+187
+268
+Human-speed
+Human-speed
+1
+10
+3
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+15
+275
+187
+308
+Zombie-vision
+Zombie-vision
+1
+5
+5
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+15
+315
+187
+348
+human-vision
+human-vision
+1
+5
+4
+1
+1
+NIL
+HORIZONTAL
+
+BUTTON
+50
+75
+157
+108
+Draw Buildings
+building-draw
+T
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+50
+365
+152
+398
+Clear Turtles
+clear-turtles
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+65
+420
+142
+453
+Clear All
+;; (for this model to work with NetLogo's new plotting features,\n  ;; __clear-all-and-reset-ticks should be replaced with clear-all at\n  ;; the beginning of your setup procedure and reset-ticks at the end\n  ;; of the procedure.)\n  __clear-all-and-reset-ticks
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
 @#$#@#$#@
 ## WHAT IS IT?
 
-(a general understanding of what the model is trying to show or explain)
+Zombies!!
 
 ## HOW IT WORKS
 
-(what rules the agents use to create the overall behavior of the model)
+Eat Brains!!!  (Seriously - see the code for information - it is fully notated.)
 
 ## HOW TO USE IT
 
-(how to use the model, including a description of each of the items in the Interface tab)
+Click the Draw Buildings button to enable the mouse to create buildings in the world.  Left click and drag the mouse to draw.  
+Push setup to get ready to eat brains!  
+Set speed for Humans and Zombies.  
+Set vision radius for Humans and Zombies.  
+Push Go to eat brains!  
+Use Clear Turtles button to restart simulation with existing buildings.  
+Use Clear All button to start from scratch.
 
 ## THINGS TO NOTICE
 
-(suggested things for the user to notice while running the model)
+Zombies now seek brains and Humans run away if they see a Zombie near them.  
+Modified the movement code to smooth the motion of agents.  
+Zombies and Humans both treat yellow patches as buildings and will not cross that patch.
 
 ## THINGS TO TRY
 
-(suggested things for the user to try to do (move sliders, switches, etc.) with the model)
+Start with just 1 zombie. Slow Zombies will eventually catch faster humans.
 
 ## EXTENDING THE MODEL
 
-(suggested things to add or change in the Code tab to make the model more complicated, detailed, accurate, etc.)
+Guns for Humans! Super Zombies! Humans that hide!
 
 ## NETLOGO FEATURES
 
-(interesting or unusual features of NetLogo that the model uses, particularly in the Code tab; or where workarounds were needed for missing features)
+The simulation runs smoother if the model is set to continuous update instead of update on ticks.
 
 ## RELATED MODELS
 
-(models in the NetLogo Models Library and elsewhere which are of related interest)
+None that I know of.
 
 ## CREDITS AND REFERENCES
 
-(a reference to the model's URL on the web if it has one, as well as any other necessary credits, citations, and links)
+Michael Ball, Research Coordinator, Computational Modeling & IT Resources at The Center for Complexity in Health - KSUA
 @#$#@#$#@
 default
 true
@@ -484,19 +620,12 @@ Polygon -7500403 true true 135 90 120 45 150 15 180 45 165 90
 
 sheep
 false
-15
-Circle -1 true true 203 65 88
-Circle -1 true true 70 65 162
-Circle -1 true true 150 105 120
-Polygon -7500403 true false 218 120 240 165 255 165 278 120
-Circle -7500403 true false 214 72 67
-Rectangle -1 true true 164 223 179 298
-Polygon -1 true true 45 285 30 285 30 240 15 195 45 210
-Circle -1 true true 3 83 150
-Rectangle -1 true true 65 221 80 296
-Polygon -1 true true 195 285 210 285 210 240 240 210 195 210
-Polygon -7500403 true false 276 85 285 105 302 99 294 83
-Polygon -7500403 true false 219 85 210 105 193 99 201 83
+0
+Rectangle -7500403 true true 151 225 180 285
+Rectangle -7500403 true true 47 225 75 285
+Rectangle -7500403 true true 15 75 210 225
+Circle -7500403 true true 135 75 150
+Circle -16777216 true false 165 76 116
 
 square
 false
@@ -582,20 +711,14 @@ Line -7500403 true 40 84 269 221
 Line -7500403 true 40 216 269 79
 Line -7500403 true 84 40 221 269
 
-wolf
-false
-0
-Polygon -16777216 true false 253 133 245 131 245 133
-Polygon -7500403 true true 2 194 13 197 30 191 38 193 38 205 20 226 20 257 27 265 38 266 40 260 31 253 31 230 60 206 68 198 75 209 66 228 65 243 82 261 84 268 100 267 103 261 77 239 79 231 100 207 98 196 119 201 143 202 160 195 166 210 172 213 173 238 167 251 160 248 154 265 169 264 178 247 186 240 198 260 200 271 217 271 219 262 207 258 195 230 192 198 210 184 227 164 242 144 259 145 284 151 277 141 293 140 299 134 297 127 273 119 270 105
-Polygon -7500403 true true -1 195 14 180 36 166 40 153 53 140 82 131 134 133 159 126 188 115 227 108 236 102 238 98 268 86 269 92 281 87 269 103 269 113
-
 x
 false
 0
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
+
 @#$#@#$#@
-NetLogo 6.0.4
+NetLogo 5.1.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
@@ -611,6 +734,7 @@ true
 0
 Line -7500403 true 150 150 90 180
 Line -7500403 true 150 150 210 180
+
 @#$#@#$#@
-0
+1
 @#$#@#$#@
