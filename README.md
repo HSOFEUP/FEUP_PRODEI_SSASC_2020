@@ -26,4 +26,4 @@ Note: Click Clear Turtles to remove agents and leave landscape in place. Click C
 This model is for infectious disease that spreads via contact. Future models will show the progression of air-borne, food-borne and fixed source contact diseases.
 
 ##  CREDITS AND REFERENCES
-This model was developed as a part of research work for The Center for Complexity in Health at Kent State University Ashtabula.
+This model was developed for PRODEI SSASC inspired from the work of The Center for Complexity in Health at Kent State University Ashtabula.
